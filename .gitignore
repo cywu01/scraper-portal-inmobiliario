@@ -17,3 +17,5 @@ env/
 .vscode/
 .idea/
  
+Claude outputs/
+logs/

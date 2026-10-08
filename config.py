@@ -378,3 +378,46 @@ REGIONS: dict[str, dict[str, str]] = {
         "San Nicolás": "san-nicolas",
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Scraper settings (shared by both pipeline stages)
+# ---------------------------------------------------------------------------
+
+SITE = "https://www.portalinmobiliario.com"
+SEARCH_URL_TEMPLATE = SITE + "/arriendo/departamento/propiedades-usadas/{slug}-{region}"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept-Language": "es-CL,es;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
+
+CONCURRENCY = 3                # simultaneous requests across a whole run
+DELAY_RANGE = (1.0, 2.5)       # random delay (seconds) before each request
+MAX_RETRIES = 4
+MAX_CONSECUTIVE_FAILURES = 8   # abort the run if the site starts blocking
+TIMEOUT = 30
+
+RAW_DIR = "data/raw"           # stage 1 output: listing_ids_<timestamp>.csv
+DETAILS_DIR = "data/details"   # stage 2 output: details.jsonl (+ details.csv export)
+CLEAN_DIR = "data/clean"       # stage 3 output: listings_clean.csv
+REFERENCE_DIR = "reference"    # tracked reference tables (uf.csv); data/ is gitignored
+
+
+SLUG_TO_COMMUNE = {slug: name for region in REGIONS.values() for name, slug in region.items()}
+SLUG_TO_REGION = {slug: region for region, communes in REGIONS.items() for slug in communes.values()}
+
+
+def resolve_targets(region: str | None = None, slugs: list[str] | None = None) -> tuple[dict[str, str], dict[str, str]]:
+    """Return ({commune_name: slug}, {commune_name: region}) for a region or a list of commune slugs."""
+    if region is not None:
+        if region not in REGIONS:
+            raise ValueError(f"invalid region '{region}'. Valid options: {', '.join(REGIONS)}")
+        communes = REGIONS[region]
+        return dict(communes), {name: region for name in communes}
+    invalid = [s for s in slugs or [] if s not in SLUG_TO_COMMUNE]
+    if invalid or not slugs:
+        raise ValueError(f"invalid commune slug(s): {', '.join(invalid) or '(none given)'}")
+    return ({SLUG_TO_COMMUNE[s]: s for s in slugs},
+            {SLUG_TO_COMMUNE[s]: SLUG_TO_REGION[s] for s in slugs})
